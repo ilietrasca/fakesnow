@@ -16,6 +16,7 @@ from sqlglot import exp
 if TYPE_CHECKING:
     import pandas as pd
     import pyarrow.lib
+
 import numpy as np
 import pyarrow
 import snowflake.connector.converter
@@ -36,13 +37,19 @@ from fakesnow.variables import Variables
 
 SCHEMA_UNSET = "schema_unset"
 SQL_SUCCESS = "SELECT 'Statement executed successfully.' as 'status'"
-SQL_CREATED_DATABASE = Template("SELECT 'Database ${name} successfully created.' as 'status'")
-SQL_CREATED_SCHEMA = Template("SELECT 'Schema ${name} successfully created.' as 'status'")
+SQL_CREATED_DATABASE = Template(
+    "SELECT 'Database ${name} successfully created.' as 'status'"
+)
+SQL_CREATED_SCHEMA = Template(
+    "SELECT 'Schema ${name} successfully created.' as 'status'"
+)
 SQL_CREATED_TABLE = Template("SELECT 'Table ${name} successfully created.' as 'status'")
 SQL_CREATED_VIEW = Template("SELECT 'View ${name} successfully created.' as 'status'")
 SQL_DROPPED = Template("SELECT '${name} successfully dropped.' as 'status'")
 SQL_INSERTED_ROWS = Template("SELECT ${count} as 'number of rows inserted'")
-SQL_UPDATED_ROWS = Template("SELECT ${count} as 'number of rows updated', 0 as 'number of multi-joined rows updated'")
+SQL_UPDATED_ROWS = Template(
+    "SELECT ${count} as 'number of rows updated', 0 as 'number of multi-joined rows updated'"
+)
 SQL_DELETED_ROWS = Template("SELECT ${count} as 'number of rows deleted'")
 
 
@@ -131,11 +138,15 @@ class FakeSnowflakeCursor:
             self._sqlstate = None
 
             if os.environ.get("FAKESNOW_DEBUG") == "snowflake":
-                print(f"{command};{params=}" if params else f"{command};", file=sys.stderr)
+                print(
+                    f"{command};{params=}" if params else f"{command};", file=sys.stderr
+                )
 
             command = self._inline_variables(command)
             command, params = self._rewrite_with_params(command, params)
-            if self._conn.nop_regexes and any(re.match(p, command, re.IGNORECASE) for p in self._conn.nop_regexes):
+            if self._conn.nop_regexes and any(
+                re.match(p, command, re.IGNORECASE) for p in self._conn.nop_regexes
+            ):
                 transformed = transforms.SUCCESS_NOP
             else:
                 expression = parse_one(command, read="snowflake")
@@ -194,9 +205,15 @@ class FakeSnowflakeCursor:
             .transform(lambda e: transforms.show_schemas(e, self._conn.database))
             .transform(lambda e: transforms.show_objects_tables(e, self._conn.database))
             # TODO collapse into a single show_keys function
-            .transform(lambda e: transforms.show_keys(e, self._conn.database, kind="PRIMARY"))
-            .transform(lambda e: transforms.show_keys(e, self._conn.database, kind="UNIQUE"))
-            .transform(lambda e: transforms.show_keys(e, self._conn.database, kind="FOREIGN"))
+            .transform(
+                lambda e: transforms.show_keys(e, self._conn.database, kind="PRIMARY")
+            )
+            .transform(
+                lambda e: transforms.show_keys(e, self._conn.database, kind="UNIQUE")
+            )
+            .transform(
+                lambda e: transforms.show_keys(e, self._conn.database, kind="FOREIGN")
+            )
             .transform(transforms.show_users)
             .transform(transforms.create_user)
             .transform(transforms.sha256)
@@ -206,7 +223,9 @@ class FakeSnowflakeCursor:
         )
 
     def _execute(
-        self, transformed: exp.Expression, params: Sequence[Any] | dict[Any, Any] | None = None
+        self,
+        transformed: exp.Expression,
+        params: Sequence[Any] | dict[Any, Any] | None = None,
     ) -> FakeSnowflakeCursor:
         self._arrow_table = None
         self._arrow_table_fetch_index = None
@@ -241,11 +260,15 @@ class FakeSnowflakeCursor:
             self._duck_conn.execute(sql, params)
         except duckdb.BinderException as e:
             msg = e.args[0]
-            raise snowflake.connector.errors.ProgrammingError(msg=msg, errno=2043, sqlstate="02000") from None
+            raise snowflake.connector.errors.ProgrammingError(
+                msg=msg, errno=2043, sqlstate="02000"
+            ) from None
         except duckdb.CatalogException as e:
             # minimal processing to make it look like a snowflake exception, message content may differ
             msg = cast(str, e.args[0]).split("\n")[0]
-            raise snowflake.connector.errors.ProgrammingError(msg=msg, errno=2003, sqlstate="42S02") from None
+            raise snowflake.connector.errors.ProgrammingError(
+                msg=msg, errno=2003, sqlstate="42S02"
+            ) from None
         except duckdb.TransactionException as e:
             if "cannot rollback - no transaction is active" in str(
                 e
@@ -255,7 +278,9 @@ class FakeSnowflakeCursor:
             else:
                 raise e
         except duckdb.ConnectionException as e:
-            raise snowflake.connector.errors.DatabaseError(msg=e.args[0], errno=250002, sqlstate="08003") from None
+            raise snowflake.connector.errors.DatabaseError(
+                msg=e.args[0], errno=250002, sqlstate="08003"
+            ) from None
 
         affected_count = None
 
@@ -288,10 +313,14 @@ class FakeSnowflakeCursor:
             # DESCRIBE TABLE/VIEW has already been run above to detect and error if the table exists
             # We now rerun DESCRIBE TABLE/VIEW but transformed with columns to match Snowflake
             result_sql = transformed.transform(
-                lambda e: transforms.describe_table(e, self._conn.database, self._conn.schema)
+                lambda e: transforms.describe_table(
+                    e, self._conn.database, self._conn.schema
+                )
             ).sql(dialect="duckdb")
 
-        elif (eid := transformed.find(exp.Identifier, bfs=False)) and isinstance(eid.this, str):
+        elif (eid := transformed.find(exp.Identifier, bfs=False)) and isinstance(
+            eid.this, str
+        ):
             ident = eid.this if eid.quoted else eid.this.upper()
             if cmd == "CREATE SCHEMA" and ident:
                 result_sql = SQL_CREATED_SCHEMA.substitute(name=ident)
@@ -316,22 +345,34 @@ class FakeSnowflakeCursor:
                 elif cmd == "DROP SCHEMA" and ident == self._conn.schema:
                     self._conn.schema = None
 
-        if table_comment := cast(tuple[exp.Table, str], transformed.args.get("table_comment")):
+        if table_comment := cast(
+            tuple[exp.Table, str], transformed.args.get("table_comment")
+        ):
             # record table comment
             table, comment = table_comment
             catalog = table.catalog or self._conn.database
             schema = table.db or self._conn.schema
             assert catalog and schema
-            self._duck_conn.execute(info_schema.insert_table_comment_sql(catalog, schema, table.name, comment))
+            self._duck_conn.execute(
+                info_schema.insert_table_comment_sql(
+                    catalog, schema, table.name, comment
+                )
+            )
 
-        if (text_lengths := cast(list[tuple[str, int]], transformed.args.get("text_lengths"))) and (
-            table := transformed.find(exp.Table)
-        ):
+        if (
+            text_lengths := cast(
+                list[tuple[str, int]], transformed.args.get("text_lengths")
+            )
+        ) and (table := transformed.find(exp.Table)):
             # record text lengths
             catalog = table.catalog or self._conn.database
             schema = table.db or self._conn.schema
             assert catalog and schema
-            self._duck_conn.execute(info_schema.insert_text_lengths_sql(catalog, schema, table.name, text_lengths))
+            self._duck_conn.execute(
+                info_schema.insert_text_lengths_sql(
+                    catalog, schema, table.name, text_lengths
+                )
+            )
 
         if result_sql:
             self._log_sql(result_sql, params)
@@ -345,7 +386,9 @@ class FakeSnowflakeCursor:
 
         return self
 
-    def _log_sql(self, sql: str, params: Sequence[Any] | dict[Any, Any] | None = None) -> None:
+    def _log_sql(
+        self, sql: str, params: Sequence[Any] | dict[Any, Any] | None = None
+    ) -> None:
         if (fs_debug := os.environ.get("FAKESNOW_DEBUG")) and fs_debug != "snowflake":
             print(f"{sql};{params=}" if params else f"{sql};", file=sys.stderr)
 
@@ -391,7 +434,9 @@ class FakeSnowflakeCursor:
         if self._arrow_table is None:
             # mimic snowflake python connector error type
             raise TypeError("No open result set")
-        tslice = self._arrow_table.slice(offset=self._arrow_table_fetch_index or 0, length=size).to_pylist()
+        tslice = self._arrow_table.slice(
+            offset=self._arrow_table_fetch_index or 0, length=size
+        ).to_pylist()
 
         if self._arrow_table_fetch_index is None:
             self._arrow_table_fetch_index = size
@@ -403,7 +448,10 @@ class FakeSnowflakeCursor:
     def get_result_batches(self) -> list[ResultBatch] | None:
         if self._arrow_table is None:
             return None
-        return [FakeResultBatch(self._use_dict_result, b) for b in self._arrow_table.to_batches(max_chunksize=1000)]
+        return [
+            FakeResultBatch(self._use_dict_result, b)
+            for b in self._arrow_table.to_batches(max_chunksize=1000)
+        ]
 
     @property
     def rowcount(self) -> int | None:
@@ -496,7 +544,9 @@ class FakeSnowflakeCursor:
             # handle client-side in the same manner as the snowflake python connector
 
             def convert(param: Any) -> Any:  # noqa: ANN401
-                return self._converter.quote(self._converter.escape(self._converter.to_snowflake(param)))
+                return self._converter.quote(
+                    self._converter.escape(self._converter.to_snowflake(param))
+                )
 
             if isinstance(params, dict):
                 params = {k: convert(v) for k, v in params.items()}
@@ -610,9 +660,15 @@ class FakeSnowflakeConnection:
     def commit(self) -> None:
         self.cursor().execute("COMMIT")
 
-    def cursor(self, cursor_class: type[SnowflakeCursor] = SnowflakeCursor) -> FakeSnowflakeCursor:
+    def cursor(
+        self, cursor_class: type[SnowflakeCursor] = SnowflakeCursor
+    ) -> FakeSnowflakeCursor:
         # TODO: use duck_conn cursor for thread-safety
-        return FakeSnowflakeCursor(conn=self, duck_conn=self._duck_conn, use_dict_result=cursor_class == DictCursor)
+        return FakeSnowflakeCursor(
+            conn=self,
+            duck_conn=self._duck_conn,
+            use_dict_result=cursor_class == DictCursor,
+        )
 
     def execute_string(
         self,
@@ -651,12 +707,19 @@ class FakeSnowflakeConnection:
         # Apply json.dumps to these columns
         for col in object_cols:
             # don't jsonify string
-            df[col] = df[col].apply(lambda x: json.dumps(x) if isinstance(x, (dict, list)) else x)
+            df[col] = df[col].apply(
+                lambda x: json.dumps(x) if isinstance(x, (dict, list)) else x
+            )
 
         escaped_cols = ",".join(f'"{col}"' for col in df.columns.to_list())
-        self._duck_conn.execute(f"INSERT INTO {table_name}({escaped_cols}) SELECT * FROM df")
+        self._duck_conn.execute(
+            f"INSERT INTO {table_name}({escaped_cols}) SELECT * FROM df"
+        )
 
         return self._duck_conn.fetchall()[0][0]
+
+    def is_closed(self) -> bool:
+        return False if self._duck_conn else True
 
 
 class FakeResultBatch(ResultBatch):
@@ -666,7 +729,12 @@ class FakeResultBatch(ResultBatch):
 
     def create_iter(
         self, **kwargs: dict[str, Any]
-    ) -> Iterator[dict | Exception] | Iterator[tuple | Exception] | Iterator[pyarrow.Table] | Iterator[pd.DataFrame]:
+    ) -> (
+        Iterator[dict | Exception]
+        | Iterator[tuple | Exception]
+        | Iterator[pyarrow.Table]
+        | Iterator[pd.DataFrame]
+    ):
         if self._use_dict_result:
             return iter(self._batch.to_pylist())
 
@@ -744,7 +812,9 @@ def write_pandas(
     count = conn._insert_df(df, name)  # noqa: SLF001
 
     # mocks https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#output
-    mock_copy_results = [("fakesnow/file0.txt", "LOADED", count, count, 1, 0, None, None, None, None)]
+    mock_copy_results = [
+        ("fakesnow/file0.txt", "LOADED", count, count, 1, 0, None, None, None, None)
+    ]
 
     # return success
     return (True, len(mock_copy_results), count, mock_copy_results)

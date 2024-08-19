@@ -38,7 +38,10 @@ def test_alias_on_join(conn: snowflake.connector.SnowflakeConnection):
         ON ALIAS = J.COL;
         """
     )
-    assert cur.fetchall() == [("VARCHAR1", "CHAR1", "JOIN"), ("VARCHAR2", "CHAR2", None)]
+    assert cur.fetchall() == [
+        ("VARCHAR1", "CHAR1", "JOIN"),
+        ("VARCHAR2", "CHAR2", None),
+    ]
 
 
 def test_alter_table(dcur: snowflake.connector.cursor.SnowflakeCursor):
@@ -66,7 +69,9 @@ def test_array_agg(dcur: snowflake.connector.cursor.DictCursor):
     dcur.executemany("insert into table1 values (%s, %s)", values)
 
     dcur.execute("select array_agg(name) as names from table1")
-    assert dindent(dcur.fetchall()) == [{"NAMES": '[\n  "foo",\n  "bar",\n  "baz",\n  "qux"\n]'}]
+    assert dindent(dcur.fetchall()) == [
+        {"NAMES": '[\n  "foo",\n  "bar",\n  "baz",\n  "qux"\n]'}
+    ]
 
     # using over
 
@@ -100,7 +105,9 @@ def test_array_agg_within_group(dcur: snowflake.connector.cursor.DictCursor):
     ]
     dcur.executemany("INSERT INTO TABLE1 VALUES (%s, %s)", values)
 
-    dcur.execute("SELECT id, ARRAY_AGG(amount) WITHIN GROUP (ORDER BY amount DESC) amounts FROM table1 GROUP BY id")
+    dcur.execute(
+        "SELECT id, ARRAY_AGG(amount) WITHIN GROUP (ORDER BY amount DESC) amounts FROM table1 GROUP BY id"
+    )
     rows = dcur.fetchall()
 
     assert dindent(rows) == [
@@ -108,7 +115,9 @@ def test_array_agg_within_group(dcur: snowflake.connector.cursor.DictCursor):
         {"ID": 2, "AMOUNTS": "[\n  50,\n  40\n]"},
     ]
 
-    dcur.execute("SELECT id, ARRAY_AGG(amount) WITHIN GROUP (ORDER BY amount ASC) amounts FROM table1 GROUP BY id")
+    dcur.execute(
+        "SELECT id, ARRAY_AGG(amount) WITHIN GROUP (ORDER BY amount ASC) amounts FROM table1 GROUP BY id"
+    )
     rows = dcur.fetchall()
 
     assert dindent(rows) == [
@@ -120,7 +129,9 @@ def test_array_agg_within_group(dcur: snowflake.connector.cursor.DictCursor):
 def test_binding_default_paramstyle(conn: snowflake.connector.SnowflakeConnection):
     assert snowflake.connector.paramstyle == "pyformat"
     with conn.cursor() as cur:
-        cur.execute("create table customers (ID int, FIRST_NAME varchar, ACTIVE boolean)")
+        cur.execute(
+            "create table customers (ID int, FIRST_NAME varchar, ACTIVE boolean)"
+        )
         cur.execute("insert into customers values (%s, %s, %s)", (1, "Jenny", True))
         cur.execute("select * from customers")
         assert cur.fetchall() == [(1, "Jenny", True)]
@@ -129,9 +140,12 @@ def test_binding_default_paramstyle(conn: snowflake.connector.SnowflakeConnectio
 def test_binding_default_paramstyle_dict(conn: snowflake.connector.SnowflakeConnection):
     assert snowflake.connector.paramstyle == "pyformat"
     with conn.cursor() as cur:
-        cur.execute("create table customers (ID int, FIRST_NAME varchar, ACTIVE boolean)")
         cur.execute(
-            "insert into customers values (%(id)s, %(name)s, %(active)s)", {"id": 1, "name": "Jenny", "active": True}
+            "create table customers (ID int, FIRST_NAME varchar, ACTIVE boolean)"
+        )
+        cur.execute(
+            "insert into customers values (%(id)s, %(name)s, %(active)s)",
+            {"id": 1, "name": "Jenny", "active": True},
         )
         cur.execute("select * from customers")
         assert cur.fetchall() == [(1, "Jenny", True)]
@@ -140,8 +154,13 @@ def test_binding_default_paramstyle_dict(conn: snowflake.connector.SnowflakeConn
 def test_binding_qmark(_fakesnow: None):
     snowflake.connector.paramstyle = "qmark"
 
-    with snowflake.connector.connect(database="db1", schema="schema1") as conn, conn.cursor() as cur:
-        cur.execute("create table customers (ID int, FIRST_NAME varchar, ACTIVE boolean)")
+    with (
+        snowflake.connector.connect(database="db1", schema="schema1") as conn,
+        conn.cursor() as cur,
+    ):
+        cur.execute(
+            "create table customers (ID int, FIRST_NAME varchar, ACTIVE boolean)"
+        )
         cur.execute("insert into customers values (?, ?, ?)", (1, "Jenny", True))
         cur.execute("select * from customers")
         assert cur.fetchall() == [(1, "Jenny", True)]
@@ -161,7 +180,10 @@ def test_clone(cur: snowflake.connector.cursor.SnowflakeCursor):
     assert cur.fetchall() == [(1, "Jenny", True)]
 
 
-def test_close_conn(conn: snowflake.connector.SnowflakeConnection, cur: snowflake.connector.cursor.SnowflakeCursor):
+def test_close_conn(
+    conn: snowflake.connector.SnowflakeConnection,
+    cur: snowflake.connector.cursor.SnowflakeCursor,
+):
     conn.close()
     with pytest.raises(snowflake.connector.errors.DatabaseError) as excinfo:
         conn.execute_string("select 1")
@@ -171,16 +193,24 @@ def test_close_conn(conn: snowflake.connector.SnowflakeConnection, cur: snowflak
     assert "250002 (08003)" in str(excinfo.value)
 
 
-def test_close_cur(conn: snowflake.connector.SnowflakeConnection, cur: snowflake.connector.cursor.SnowflakeCursor):
+def test_close_cur(
+    conn: snowflake.connector.SnowflakeConnection,
+    cur: snowflake.connector.cursor.SnowflakeCursor,
+):
     assert cur.close() is True
 
 
 def test_create_database_respects_if_not_exists() -> None:
-    with tempfile.TemporaryDirectory(prefix="fakesnow-test") as db_path, fakesnow.patch(db_path=db_path):
+    with (
+        tempfile.TemporaryDirectory(prefix="fakesnow-test") as db_path,
+        fakesnow.patch(db_path=db_path),
+    ):
         cursor = snowflake.connector.connect().cursor()
         cursor.execute("CREATE DATABASE db2")
 
-        with pytest.raises(ProgrammingError, match='Database "DB2" is already attached with path'):
+        with pytest.raises(
+            ProgrammingError, match='Database "DB2" is already attached with path'
+        ):
             cursor.execute("CREATE DATABASE db2")  # Fails as db already exists.
 
         cursor.execute("CREATE DATABASE IF NOT EXISTS db2")
@@ -208,7 +238,9 @@ def test_dateadd_date_cast(dcur: snowflake.connector.DictCursor):
     ]
 
 
-def test_dateadd_string_literal_timestamp_cast(dcur: snowflake.connector.cursor.DictCursor):
+def test_dateadd_string_literal_timestamp_cast(
+    dcur: snowflake.connector.cursor.DictCursor,
+):
     q = """
     SELECT
         DATEADD('MINUTE', 3, '2023-04-02') AS D_MINUTE,
@@ -256,7 +288,9 @@ def test_dateadd_string_literal_timestamp_cast(dcur: snowflake.connector.cursor.
     ]
 
 
-def test_datediff_string_literal_timestamp_cast(cur: snowflake.connector.cursor.SnowflakeCursor):
+def test_datediff_string_literal_timestamp_cast(
+    cur: snowflake.connector.cursor.SnowflakeCursor,
+):
     cur.execute("SELECT DATEDIFF(DAY, '2023-04-02', '2023-03-02') AS D")
     assert cur.fetchall() == [(-31,)]
 
@@ -267,8 +301,16 @@ def test_datediff_string_literal_timestamp_cast(cur: snowflake.connector.cursor.
     assert cur.fetchall() == [(-4,)]
 
     # noop
-    cur.execute("select '2023-04-02'::timestamp as c1, '2023-03-02'::timestamp as c2, DATEDIFF(minute, c1, c2) AS D")
-    assert cur.fetchall() == [(datetime.datetime(2023, 4, 2, 0, 0), datetime.datetime(2023, 3, 2, 0, 0), -44640)]
+    cur.execute(
+        "select '2023-04-02'::timestamp as c1, '2023-03-02'::timestamp as c2, DATEDIFF(minute, c1, c2) AS D"
+    )
+    assert cur.fetchall() == [
+        (
+            datetime.datetime(2023, 4, 2, 0, 0),
+            datetime.datetime(2023, 3, 2, 0, 0),
+            -44640,
+        )
+    ]
 
 
 def test_current_database_schema(conn: snowflake.connector.SnowflakeConnection):
@@ -331,7 +373,10 @@ def test_describe(cur: snowflake.connector.cursor.SnowflakeCursor):
     assert cur.description == expected_metadata
 
     # test with params
-    assert cur.describe("select * from example where XNUMBER = %s", (1,)) == expected_metadata
+    assert (
+        cur.describe("select * from example where XNUMBER = %s", (1,))
+        == expected_metadata
+    )
     cur.execute("select * from example where XNUMBER = %s", (1,))
     assert cur.description == expected_metadata
 
@@ -433,7 +478,10 @@ def test_describe_table(dcur: snowflake.connector.cursor.DictCursor):
     # TODO: actual snowflake error is:
     # 002003 (42S02): SQL compilation error:
     # Table 'THIS_DOES_NOT_EXIST' does not exist or not authorized.
-    assert "002003 (42S02): Catalog Error: Table with name THIS_DOES_NOT_EXIST does not exist!" in str(excinfo.value)
+    assert (
+        "002003 (42S02): Catalog Error: Table with name THIS_DOES_NOT_EXIST does not exist!"
+        in str(excinfo.value)
+    )
 
 
 def test_describe_view(dcur: snowflake.connector.cursor.DictCursor):
@@ -503,7 +551,9 @@ def test_description_create_drop_schema(dcur: snowflake.connector.cursor.DictCur
     assert dcur.description == [ResultMetadata(name='status', type_code=2, display_size=None, internal_size=16777216, precision=None, scale=None, is_nullable=True)]  # fmt: skip
 
 
-def test_description_create_alter_drop_table(dcur: snowflake.connector.cursor.DictCursor):
+def test_description_create_alter_drop_table(
+    dcur: snowflake.connector.cursor.DictCursor,
+):
     dcur.execute("create table example (x int)")
     assert dcur.fetchall() == [{"status": "Table EXAMPLE successfully created."}]
     assert dcur.description == [ResultMetadata(name='status', type_code=2, display_size=None, internal_size=16777216, precision=None, scale=None, is_nullable=True)]  # fmt: skip
@@ -536,7 +586,9 @@ def test_description_update(dcur: snowflake.connector.cursor.DictCursor):
     dcur.execute("create table example (x int)")
     dcur.execute("insert into example values (1), (2), (3)")
     dcur.execute("update example set x=420 where x > 1")
-    assert dcur.fetchall() == [{"number of rows updated": 2, "number of multi-joined rows updated": 0}]
+    assert dcur.fetchall() == [
+        {"number of rows updated": 2, "number of multi-joined rows updated": 0}
+    ]
     # TODO: Snowflake is actually precision=19, is_nullable=False
     # fmt: off
     assert dcur.description == [
@@ -560,7 +612,9 @@ def test_description_delete(dcur: snowflake.connector.cursor.DictCursor):
 
 
 def test_description_select(dcur: snowflake.connector.cursor.DictCursor):
-    dcur.execute("SELECT DATEDIFF( DAY, '2023-04-02'::DATE, '2023-04-05'::DATE) as days")
+    dcur.execute(
+        "SELECT DATEDIFF( DAY, '2023-04-02'::DATE, '2023-04-05'::DATE) as days"
+    )
     assert dcur.fetchall() == [{"DAYS": 3}]
     # TODO: Snowflake is actually precision=9, is_nullable=False
     # fmt: off
@@ -571,15 +625,21 @@ def test_description_select(dcur: snowflake.connector.cursor.DictCursor):
 
 
 def test_equal_null(cur: snowflake.connector.cursor.SnowflakeCursor):
-    cur.execute("select equal_null(NULL, NULL), equal_null(1, 1), equal_null(1, 2), equal_null(1, NULL)")
+    cur.execute(
+        "select equal_null(NULL, NULL), equal_null(1, 1), equal_null(1, 2), equal_null(1, NULL)"
+    )
     assert cur.fetchall() == [(True, True, False, False)]
 
 
 def test_executemany(cur: snowflake.connector.cursor.SnowflakeCursor):
-    cur.execute("create table customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)")
+    cur.execute(
+        "create table customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)"
+    )
 
     customers = [(1, "Jenny", "P"), (2, "Jasper", "M")]
-    cur.executemany("insert into customers (id, first_name, last_name) values (%s,%s,%s)", customers)
+    cur.executemany(
+        "insert into customers (id, first_name, last_name) values (%s,%s,%s)", customers
+    )
 
     cur.execute("select id, first_name, last_name from customers")
     assert cur.fetchall() == customers
@@ -602,7 +662,9 @@ def test_fetchall(conn: snowflake.connector.SnowflakeConnection):
         with pytest.raises(TypeError) as _:
             cur.fetchall()
 
-        cur.execute("create table customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)")
+        cur.execute(
+            "create table customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)"
+        )
         cur.execute("insert into customers values (1, 'Jenny', 'P')")
         cur.execute("insert into customers values (2, 'Jasper', 'M')")
         cur.execute("select id, first_name, last_name from customers")
@@ -622,7 +684,9 @@ def test_fetchall(conn: snowflake.connector.SnowflakeConnection):
 
 def test_fetchone(conn: snowflake.connector.SnowflakeConnection):
     with conn.cursor() as cur:
-        cur.execute("create table customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)")
+        cur.execute(
+            "create table customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)"
+        )
         cur.execute("insert into customers values (1, 'Jenny', 'P')")
         cur.execute("insert into customers values (2, 'Jasper', 'M')")
         cur.execute("select id, first_name, last_name from customers")
@@ -645,7 +709,9 @@ def test_fetchmany(conn: snowflake.connector.SnowflakeConnection):
         with pytest.raises(TypeError) as _:
             cur.fetchmany()
 
-        cur.execute("create table customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)")
+        cur.execute(
+            "create table customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)"
+        )
         cur.execute("insert into customers values (1, 'Jenny', 'P')")
         cur.execute("insert into customers values (2, 'Jasper', 'M')")
         cur.execute("insert into customers values (3, 'Jeremy', 'K')")
@@ -673,7 +739,9 @@ def test_fetch_pandas_all(cur: snowflake.connector.cursor.SnowflakeCursor):
     with pytest.raises(snowflake.connector.NotSupportedError) as _:
         cur.fetch_pandas_all()
 
-    cur.execute("create table customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)")
+    cur.execute(
+        "create table customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)"
+    )
     cur.execute("insert into customers values (1, 'Jenny', 'P')")
     cur.execute("insert into customers values (2, 'Jasper', 'M')")
     cur.execute("select id, first_name, last_name from customers")
@@ -721,7 +789,9 @@ def test_flatten_value_cast_as_varchar(cur: snowflake.connector.cursor.Snowflake
 
 
 def test_floats_are_64bit(cur: snowflake.connector.cursor.SnowflakeCursor):
-    cur.execute("create or replace table example (f float, f4 float4, f8 float8, d double, r real)")
+    cur.execute(
+        "create or replace table example (f float, f4 float4, f8 float8, d double, r real)"
+    )
     cur.execute("insert into example values (1.23, 1.23, 1.23, 1.23, 1.23)")
     cur.execute("select * from example")
     # 32 bit floats will return 1.2300000190734863 rather than 1.23
@@ -737,13 +807,19 @@ def test_get_path_as_varchar(cur: snowflake.connector.cursor.SnowflakeCursor):
     assert cur.fetchall() == [("banana",)]
 
     # nested json
-    cur.execute("""select get_path(parse_json('{"food":{"fruit":"banana"}}'), 'food.fruit')::varchar""")
+    cur.execute(
+        """select get_path(parse_json('{"food":{"fruit":"banana"}}'), 'food.fruit')::varchar"""
+    )
     assert cur.fetchall() == [("banana",)]
 
-    cur.execute("""select parse_json('{"food":{"fruit":"banana"}}'):food.fruit::varchar""")
+    cur.execute(
+        """select parse_json('{"food":{"fruit":"banana"}}'):food.fruit::varchar"""
+    )
     assert cur.fetchall() == [("banana",)]
 
-    cur.execute("""select parse_json('{"food":{"fruit":"banana"}}'):food:fruit::varchar""")
+    cur.execute(
+        """select parse_json('{"food":{"fruit":"banana"}}'):food:fruit::varchar"""
+    )
     assert cur.fetchall() == [("banana",)]
 
     # json number is varchar
@@ -776,7 +852,9 @@ def test_get_result_batches(cur: snowflake.connector.cursor.SnowflakeCursor):
     # no result set
     assert cur.get_result_batches() is None
 
-    cur.execute("create table customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)")
+    cur.execute(
+        "create table customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)"
+    )
     cur.execute("insert into customers values (1, 'Jenny', 'P')")
     cur.execute("insert into customers values (2, 'Jasper', 'M')")
     cur.execute("select id, first_name, last_name from customers")
@@ -792,7 +870,9 @@ def test_get_result_batches_dict(dcur: snowflake.connector.cursor.DictCursor):
     # no result set
     assert dcur.get_result_batches() is None
 
-    dcur.execute("create table customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)")
+    dcur.execute(
+        "create table customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)"
+    )
     dcur.execute("insert into customers values (1, 'Jenny', 'P')")
     dcur.execute("insert into customers values (2, 'Jasper', 'M')")
     dcur.execute("select id, first_name, last_name from customers")
@@ -825,12 +905,18 @@ def test_identifier(cur: snowflake.connector.cursor.SnowflakeCursor):
 
 
 def test_nop_regexes():
-    with fakesnow.patch(nop_regexes=["^CALL.*"]), snowflake.connector.connect() as conn, conn.cursor() as cur:
+    with (
+        fakesnow.patch(nop_regexes=["^CALL.*"]),
+        snowflake.connector.connect() as conn,
+        conn.cursor() as cur,
+    ):
         cur.execute("call this_procedure_does_not_exist('foo', 'bar);")
         assert cur.fetchall() == [("Statement executed successfully.",)]
 
 
-def test_non_existent_table_throws_snowflake_exception(cur: snowflake.connector.cursor.SnowflakeCursor):
+def test_non_existent_table_throws_snowflake_exception(
+    cur: snowflake.connector.cursor.SnowflakeCursor,
+):
     with pytest.raises(snowflake.connector.errors.ProgrammingError) as _:
         cur.execute("select * from this_table_does_not_exist")
 
@@ -845,7 +931,9 @@ def test_object_construct(conn: snowflake.connector.SnowflakeConnection):
 
         result = cur.fetchone()
         assert isinstance(result, tuple)
-        assert strip_none_values(json.loads(result[0])) == json.loads('{\n  "a": 1,\n  "b": "BBBB"\n}')
+        assert strip_none_values(json.loads(result[0])) == json.loads(
+            '{\n  "a": 1,\n  "b": "BBBB"\n}'
+        )
 
     with conn.cursor() as cur:
         cur.execute("SELECT OBJECT_CONSTRUCT('a', 1, null, 'nulkeyed') as col")
@@ -861,7 +949,9 @@ def test_object_construct(conn: snowflake.connector.SnowflakeConnection):
 
         result = cur.fetchone()
         assert isinstance(result, tuple)
-        assert strip_none_values(json.loads(result[1])) == json.loads('{\n  "k1": "v1",\n  "k3": "v3"\n}')
+        assert strip_none_values(json.loads(result[1])) == json.loads(
+            '{\n  "k1": "v1",\n  "k3": "v3"\n}'
+        )
 
     with conn.cursor() as cur:
         cur.execute(
@@ -934,7 +1024,10 @@ def test_random(cur: snowflake.connector.cursor.SnowflakeCursor):
     assert cur.fetchall() == [(-2595895151578578944,)]
     cur.execute("select random(419)")
     assert cur.fetchall() == [(4590143504000221184,)]
-    assert cur.execute("select random()").fetchall() != cur.execute("select random()").fetchall()
+    assert (
+        cur.execute("select random()").fetchall()
+        != cur.execute("select random()").fetchall()
+    )
 
 
 def test_rowcount(cur: snowflake.connector.cursor.SnowflakeCursor):
@@ -958,7 +1051,9 @@ def test_sample(cur: snowflake.connector.cursor.SnowflakeCursor):
 
 def test_schema_create_and_use(cur: snowflake.connector.cursor.SnowflakeCursor):
     cur.execute("create schema jaffles")
-    cur.execute("create table jaffles.customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)")
+    cur.execute(
+        "create table jaffles.customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)"
+    )
     cur.execute("use schema jaffles")
     # fully qualified works too
     cur.execute("use schema db1.jaffles")
@@ -967,13 +1062,17 @@ def test_schema_create_and_use(cur: snowflake.connector.cursor.SnowflakeCursor):
 
 def test_schema_drop(cur: snowflake.connector.cursor.SnowflakeCursor):
     cur.execute("create schema jaffles")
-    cur.execute("create table jaffles.customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)")
+    cur.execute(
+        "create table jaffles.customers (ID int, FIRST_NAME varchar, LAST_NAME varchar)"
+    )
     # dropping schema drops its contents
     cur.execute("drop schema jaffles")
 
 
 def test_semi_structured_types(cur: snowflake.connector.cursor.SnowflakeCursor):
-    cur.execute("create or replace table semis (emails array, names object, notes variant)")
+    cur.execute(
+        "create or replace table semis (emails array, names object, notes variant)"
+    )
     cur.execute(
         """insert into semis(emails, names, notes) SELECT ['A', 'B'], OBJECT_CONSTRUCT('k','v1'), ARRAY_CONSTRUCT('foo')::VARIANT"""
     )
@@ -984,7 +1083,10 @@ def test_semi_structured_types(cur: snowflake.connector.cursor.SnowflakeCursor):
     # results are returned as strings, because the underlying type is JSON (duckdb) / VARIANT (snowflake)
 
     cur.execute("select emails from semis")
-    assert indent(cur.fetchall()) == [('[\n  "A",\n  "B"\n]',), ('[\n  "C",\n  "D"\n]',)]
+    assert indent(cur.fetchall()) == [
+        ('[\n  "A",\n  "B"\n]',),
+        ('[\n  "C",\n  "D"\n]',),
+    ]
 
     cur.execute("select emails[0] from semis")
     assert cur.fetchall() == [('"A"',), ('"C"',)]
@@ -1003,7 +1105,11 @@ def test_semi_structured_types(cur: snowflake.connector.cursor.SnowflakeCursor):
         """
     )
     assert indent(cur.fetchall()) == [
-        ('{\n  "key_1": "one"\n}', '{\n  "key_1": "one",\n  "key_2": null\n}', '{\n  "key_1": "one"\n}')
+        (
+            '{\n  "key_1": "one"\n}',
+            '{\n  "key_1": "one",\n  "key_2": null\n}',
+            '{\n  "key_1": "one"\n}',
+        )
     ]
 
 
@@ -1012,7 +1118,9 @@ def test_semi_structured_types(cur: snowflake.connector.cursor.SnowflakeCursor):
 )
 def test_show_keys(dcur: snowflake.connector.cursor.SnowflakeCursor):
     dcur.execute("CREATE TABLE test_table (id INT PRIMARY KEY, name TEXT UNIQUE)")
-    dcur.execute("CREATE TABLE test_table2 (id INT, other_id INT, FOREIGN KEY (other_id) REFERENCES test_table(id))")
+    dcur.execute(
+        "CREATE TABLE test_table2 (id INT, other_id INT, FOREIGN KEY (other_id) REFERENCES test_table(id))"
+    )
 
     dcur.execute("SHOW PRIMARY KEYS")
     primary_keys = dcur.fetchall()
@@ -1117,7 +1225,13 @@ def test_show_objects(dcur: snowflake.connector.cursor.SnowflakeCursor):
             "schema_name": "information_schema",
         },
     ]
-    assert [r.name for r in dcur.description] == ["created_on", "name", "kind", "database_name", "schema_name"]
+    assert [r.name for r in dcur.description] == [
+        "created_on",
+        "name",
+        "kind",
+        "database_name",
+        "schema_name",
+    ]
 
     dcur.execute("show objects").fetchall()
     assert [r.name for r in dcur.description] == [
@@ -1156,7 +1270,13 @@ def test_show_schemas(dcur: snowflake.connector.cursor.SnowflakeCursor):
             "schema_name": None,
         },
     ]
-    assert [r.name for r in dcur.description] == ["created_on", "name", "kind", "database_name", "schema_name"]
+    assert [r.name for r in dcur.description] == [
+        "created_on",
+        "name",
+        "kind",
+        "database_name",
+        "schema_name",
+    ]
 
 
 def test_show_tables(dcur: snowflake.connector.cursor.SnowflakeCursor):
@@ -1254,14 +1374,19 @@ def test_show_primary_keys(dcur: snowflake.connector.cursor.SnowflakeCursor):
 
 
 def test_split(cur: snowflake.connector.cursor.SnowflakeCursor):
-    assert indent(cur.execute("select split('a,b,c', ',')").fetchall()) == [('[\n  "a",\n  "b",\n  "c"\n]',)]
+    assert indent(cur.execute("select split('a,b,c', ',')").fetchall()) == [
+        ('[\n  "a",\n  "b",\n  "c"\n]',)
+    ]
 
 
 def test_sqlglot_regression(cur: snowflake.connector.cursor.SnowflakeCursor):
-    assert cur.execute(
-        """with SOURCE_TABLE AS (SELECT '2024-01-01' AS start_date)
+    assert (
+        cur.execute(
+            """with SOURCE_TABLE AS (SELECT '2024-01-01' AS start_date)
             SELECT date(a.start_date) from SOURCE_TABLE AS a"""
-    ).fetchone() == (datetime.date(2024, 1, 1),)
+        ).fetchone()
+        == (datetime.date(2024, 1, 1),)
+    )
 
 
 def test_sqlstate(cur: snowflake.connector.cursor.SnowflakeCursor):
@@ -1280,9 +1405,14 @@ def test_sfqid(cur: snowflake.connector.cursor.SnowflakeCursor):
 
 
 def test_string_constant(cur: snowflake.connector.cursor.SnowflakeCursor):
-    assert cur.execute("""
+    assert (
+        cur.execute(
+            """
         select $$hello
-world$$""").fetchall() == [("hello\nworld",)]
+world$$"""
+        ).fetchall()
+        == [("hello\nworld",)]
+    )
 
 
 def test_tags_noop(cur: snowflake.connector.cursor.SnowflakeCursor):
@@ -1308,14 +1438,22 @@ def test_timestamp_to_date(cur: snowflake.connector.cursor.SnowflakeCursor):
     cur.execute(
         "SELECT to_date(to_timestamp(0)), to_date(cast(to_timestamp(0) as timestamp(9))), to_date('2024-01-26')"
     )
-    assert cur.fetchall() == [(datetime.date(1970, 1, 1), datetime.date(1970, 1, 1), datetime.date(2024, 1, 26))]
+    assert cur.fetchall() == [
+        (
+            datetime.date(1970, 1, 1),
+            datetime.date(1970, 1, 1),
+            datetime.date(2024, 1, 26),
+        )
+    ]
 
 
 def test_to_decimal(cur: snowflake.connector.cursor.SnowflakeCursor):
     # see https://docs.snowflake.com/en/sql-reference/functions/to_decimal#examples
     cur.execute("create or replace table number_conv(expr varchar);")
     cur.execute("insert into number_conv values ('12.3456'), ('98.76546');")
-    cur.execute("select expr, to_decimal(expr),  to_number(expr, 10, 1), to_numeric(expr, 10, 8) from number_conv;")
+    cur.execute(
+        "select expr, to_decimal(expr),  to_number(expr, 10, 1), to_numeric(expr, 10, 8) from number_conv;"
+    )
 
     assert cur.fetchall() == [
         ("12.3456", 12, Decimal("12.3"), Decimal("12.34560000")),
@@ -1336,7 +1474,9 @@ def test_sha2(cur: snowflake.connector.cursor.SnowflakeCursor):
 
 def test_try_parse_json(dcur: snowflake.connector.cursor.DictCursor):
     dcur.execute("""SELECT TRY_PARSE_JSON('{"first":"foo", "last":"bar"}') AS j""")
-    assert dindent(dcur.fetchall()) == [{"J": '{\n  "first": "foo",\n  "last": "bar"\n}'}]
+    assert dindent(dcur.fetchall()) == [
+        {"J": '{\n  "first": "foo",\n  "last": "bar"\n}'}
+    ]
 
     dcur.execute("""SELECT TRY_PARSE_JSON('{invalid: ,]') AS j""")
     assert dcur.fetchall() == [{"J": None}]
@@ -1400,12 +1540,18 @@ def test_trim_cast_varchar(cur: snowflake.connector.cursor.SnowflakeCursor):
     cur.execute("select trim(1), trim('  name 1  ')")
     assert cur.fetchall() == [("1", "name 1")]
 
-    cur.execute("""select trim(parse_json('{"k1": "   v11  "}'):k1), trim(parse_json('{"k1": 21}'):k1)""")
+    cur.execute(
+        """select trim(parse_json('{"k1": "   v11  "}'):k1), trim(parse_json('{"k1": 21}'):k1)"""
+    )
     assert cur.fetchall() == [("v11", "21")]
 
 
-def test_unquoted_identifiers_are_upper_cased(dcur: snowflake.connector.cursor.SnowflakeCursor):
-    dcur.execute("create table customers (id int, first_name varchar, last_name varchar)")
+def test_unquoted_identifiers_are_upper_cased(
+    dcur: snowflake.connector.cursor.SnowflakeCursor,
+):
+    dcur.execute(
+        "create table customers (id int, first_name varchar, last_name varchar)"
+    )
     dcur.execute("insert into customers values (1, 'Jenny', 'P')")
     dcur.execute("select first_name, first_name as fname from customers")
 
@@ -1469,7 +1615,8 @@ def test_variables(conn: snowflake.connector.SnowflakeConnection):
 
         cur.execute("UNSET var3;")
         with pytest.raises(
-            snowflake.connector.errors.ProgrammingError, match=re.escape("Session variable '$VAR3' does not exist")
+            snowflake.connector.errors.ProgrammingError,
+            match=re.escape("Session variable '$VAR3' does not exist"),
         ):
             cur.execute("select $var3;")
 
@@ -1483,7 +1630,8 @@ def test_variables(conn: snowflake.connector.SnowflakeConnection):
         snowflake.connector.connect() as conn,
         conn.cursor() as cur,
         pytest.raises(
-            snowflake.connector.errors.ProgrammingError, match=re.escape("Session variable '$VAR1' does not exist")
+            snowflake.connector.errors.ProgrammingError,
+            match=re.escape("Session variable '$VAR1' does not exist"),
         ),
     ):
         cur.execute("select $var1;")
@@ -1510,10 +1658,24 @@ def test_values(conn: snowflake.connector.SnowflakeConnection):
 
 def test_json_extract_cast_as_varchar(dcur: snowflake.connector.cursor.DictCursor):
     dcur.execute("CREATE TABLE example (j VARIANT)")
-    dcur.execute("""INSERT INTO example SELECT PARSE_JSON('{"str": "100", "num" : 200}')""")
+    dcur.execute(
+        """INSERT INTO example SELECT PARSE_JSON('{"str": "100", "num" : 200}')"""
+    )
 
-    dcur.execute("SELECT j:str::varchar as j_str_varchar, j:num::varchar as j_num_varchar FROM example")
+    dcur.execute(
+        "SELECT j:str::varchar as j_str_varchar, j:num::varchar as j_num_varchar FROM example"
+    )
     assert dcur.fetchall() == [{"J_STR_VARCHAR": "100", "J_NUM_VARCHAR": "200"}]
 
-    dcur.execute("SELECT j:str::number as j_str_number, j:num::number as j_num_number FROM example")
+    dcur.execute(
+        "SELECT j:str::number as j_str_number, j:num::number as j_num_number FROM example"
+    )
     assert dcur.fetchall() == [{"J_STR_NUMBER": 100, "J_NUM_NUMBER": 200}]
+
+
+def test_is_closed_present(dcur: snowflake.connector.cursor.DictCursor):
+    dcur.execute("CREATE TABLE table1 (ID INT, amount INT)")
+
+
+def test_is_closed_presen(conn: snowflake.connector.SnowflakeConnection):
+    assert conn.is_closed() is False
